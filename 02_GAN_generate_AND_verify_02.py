@@ -16,13 +16,21 @@
 
 
 import time
+import os
 import numpy as np
+import shutil
 from keras.datasets.mnist import load_data
 from keras.models import Sequential, load_model, model_from_json
 from keras.optimizers import Adam
 from keras.layers import Dense, Flatten, Conv2D, Dropout, BatchNormalization
 from keras import backend as K
 from keras.layers.core import Lambda
+from keras.callbacks import ModelCheckpoint
+from keras import Input
+from keras.utils import np_utils
+
+LoadWiseWeights = False
+N_EPOCHS = 40
 
 # Starting to get a decent Wise Man to label images
 def PermaDropout(rate):
@@ -55,12 +63,41 @@ def Wise_Old_Man(dropRate=0.4):
 
 	return model
 
-# The Wise_Old_Man was trained on the MNIST train set.
-WiseWeights = './Dropouts_Wise_old_Men/Aristotle_Weights_light.h5'
-Aristotle = Wise_Old_Man()
-Aristotle.load_weights(WiseWeights)
+## Create some directory to save stuff to ##
+StartTime = time.strftime("%Y_%m_%d_%Hh%M_%S") 
+fullPathToScript = os.path.realpath(__file__)
+Parentdirectory = os.path.dirname(fullPathToScript)
+FullFilename = os.path.basename(fullPathToScript)
+shortFileName = (os.path.splitext(FullFilename)[0])
+MySafePlace = Parentdirectory + '/' + StartTime + '_' + shortFileName + '/'
+if not os.path.exists(MySafePlace):
+	os.makedirs(MySafePlace)
 
-# Each class has its own GAN
+
+if LoadWiseWeights:
+	# The Wise_Old_Man was trained on the MNIST train set.
+	WiseWeights = './Path_to/Aristotle_Weights.h5'
+	Aristotle = Wise_Old_Man()
+	Aristotle.load_weights(WiseWeights)
+
+else:
+	# Or you can retrain it on MNIST
+	(X_train, Y_train), (X_test, Y_test) = load_data()
+	# reshape & X normalize inputs to 0-1
+	X_train = X_train.reshape(X_train.shape[0], 28, 28, 1).astype('float32')
+	X_test = X_test.reshape(X_test.shape[0], 28, 28, 1).astype('float32')
+	X_train = X_train / 255
+	X_test = X_test / 255
+	Y_train = np_utils.to_categorical(Y_train)
+	Y_test = np_utils.to_categorical(Y_test)
+	filepath = MySafePlace + 'WiseWeights_best.h5'
+	checkpoint = ModelCheckpoint(filepath, monitor='val_acc', verbose = 2, save_best_only = True, mode='max')
+	callbacks_list = [checkpoint]
+	Aristotle = Wise_Old_Man()
+	Wise_history = Aristotle.fit(X_train, Y_train, validation_data=(X_test, Y_test), epochs=N_EPOCHS, verbose = 2, batch_size=20, callbacks = callbacks_list)
+
+
+# Generators. Each class has its own GAN.
 generator_file = './GAN/generator_model.json'
 list_of_weights = ['./GAN/generator_model_0.h5','./GAN/generator_model_1.h5','./GAN/generator_model_2.h5','./GAN/generator_model_3.h5','./GAN/generator_model_4.h5','./GAN/generator_model_5.h5','./GAN/generator_model_6.h5','./GAN/generator_model_7.h5','./GAN/generator_model_8.h5', './GAN/generator_model_9.h5']
 
